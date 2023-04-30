@@ -21,6 +21,7 @@ pageNum = 1
 wordCount = 0
 
 currentFilePath = None
+currentText = None
 
 class MediaBar:
     def open_file():
@@ -35,6 +36,8 @@ class MediaBar:
             global currentText 
             currentText = ujson.loads(inputFile.read())
             editor.insert(tk.END, currentText["pages"][pageNum - 1]["text"])
+
+        ControlBar.update_word_counter()
 
         window.title("Notebook: " + currentText["title"])
 
@@ -72,12 +75,22 @@ class MediaBar:
 
         window.title(f"Notebook: - {filepath}")
 
+    def clear():
+        global currentFilePath
+        global currentText
+        editor.delete("1.0", tk.END)
+        ControlBar.update_word_counter()
+        currentFilePath = None
+        currentText = None        
+
     frame = ttk.Frame(window, relief=tk.RAISED)
     openButton = ttk.Button(frame, text="Open", command=open_file)
     saveButton = ttk.Button(frame, text="Save", command=save_file)
+    clearButton = ttk.Button(frame, text="Clear", command=clear)
 
     openButton.grid(row=0, column=0, sticky="ew")
     saveButton.grid(row=0, column=1, sticky="ew")
+    clearButton.grid(row=0, column=2, sticky="ew")
 
 class ControlBar:
     def update_page_number():
@@ -85,7 +98,7 @@ class ControlBar:
         pageNumber.grid(row=0, column=1, sticky="s")
     update_page_number()
 
-    def previous_page(frame):
+    def previous_page():
         global pageNum
         if pageNum > 1:
             if not editor.get("1.0", tk.END).strip() == "":
@@ -94,8 +107,9 @@ class ControlBar:
             ControlBar.update_page_number()
             editor.delete("1.0", tk.END)
             editor.insert(tk.END, currentText["pages"][pageNum - 1]["text"])
+            ControlBar.update_word_counter()
 
-    def next_page(frame):
+    def next_page():
         global pageNum
         if pageNum <= len(currentText["pages"]):
             if not editor.get("1.0", tk.END).strip() == "":
@@ -105,6 +119,7 @@ class ControlBar:
             editor.delete("1.0", tk.END)
             if pageNum <= len(currentText["pages"]):
                 editor.insert(tk.END, currentText["pages"][pageNum - 1]["text"])
+            ControlBar.update_word_counter()
 
     frame = ttk.Frame(window, relief=tk.RAISED)
     backButton = ttk.Button(frame, text="Back", command=previous_page)
@@ -115,14 +130,15 @@ class ControlBar:
     nextButton.grid(row=0, column=2, sticky="sw")
     wordCounter.grid(row=0, column=0, sticky="w")
 
-    def update_word_counter(event):
+    def update_word_counter():
         global wordCount
         text = editor.get("1.0", tk.END).strip()
-        if not text == "":
-            wordCount = len(text.split())
-            ControlBar.wordCounter.config(text=f"{wordCount} words", fg="white")
+        wordCount = len(text.split())
+        ControlBar.wordCounter.config(text=f"{wordCount} words", fg="white")
+    def run_update(event):
+        ControlBar.update_word_counter()
 
-    editor.bind("<KeyRelease>", update_word_counter)
+    editor.bind("<KeyRelease>", run_update)
 
 
 MediaBar.frame.grid(row=0, column=0, sticky="w")
