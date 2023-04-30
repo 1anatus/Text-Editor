@@ -1,6 +1,14 @@
 import tkinter as tk
+
+from tkinter import ttk
+import sv_ttk
+
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 import ujson
+from pathlib import Path
+
+import threading
+import time
 
 window = tk.Tk()
 window.title("Notebook")
@@ -10,19 +18,20 @@ window.columnconfigure(1, minsize=50, weight=1)
 editor = tk.Text(window)
 
 pageNum = 1
+wordCount = 0
 
 currentFilePath = None
 
-class MediaBar():
+class MediaBar:
     def open_file():
-        filepath = askopenfilename(filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")])
+        filepath = askopenfilename(filetypes=[("Notebook Files", "*.notebook"), ("All Files", "*.*")])
         if not filepath:
             return
         global currentFilePath
         currentFilePath = filepath
 
         editor.delete("1.0", tk.END)
-        with open(filepath, mode="r") as inputFile:
+        with open(filepath, "r") as inputFile:
             global currentText 
             currentText = ujson.loads(inputFile.read())
             editor.insert(tk.END, currentText["pages"][pageNum - 1]["text"])
@@ -33,41 +42,50 @@ class MediaBar():
         if not currentFilePath == None:
             text = editor.get("1.0", tk.END).strip()
             if pageNum > len(currentText["pages"]) and not text == "":
-                currentText["pages"].append({"text": text})
+                currentText["pages"].append({
+                    "text": text
+                })
             else:
                 currentText["pages"][pageNum - 1]["text"] = text
-            with open(currentFilePath, mode='w') as outputFile:
+            with open(currentFilePath, "w") as outputFile:
                 ujson.dump(currentText, outputFile, indent=4)
 
             window.title("Notebook: " + currentText["title"])
+        else:
+            MediaBar.saveas_file()
 
     def saveas_file():
-        filepath = asksaveasfilename(defaultextension=".txt", filetypes=[("Notebook Files", "*.notebook"), ("All Files", "*.*")],)
+        filepath = asksaveasfilename(defaultextension=".notebook", filetypes=[("Notebook Files", "*.notebook"), ("All Files", "*.*")],)
         if not filepath:
             return
 
-        with open(filepath, mode="w") as outputFile:
-            text = editor.get("1.0", tk.END)
-            outputFile.write(text)
+        with open(filepath, "w") as outputFile:
+            newJson = {
+                "title": Path(filepath).stem.title(),
+                "pages": [
+                    {
+                        "text": editor.get("1.0", tk.END).strip()
+                    }
+                ]
+            }
+            ujson.dump(newJson, outputFile, indent=4)
 
         window.title(f"Notebook: - {filepath}")
 
-    frame = tk.Frame(window, relief=tk.RAISED)
-    openButton = tk.Button(frame, text="Open", command=open_file)
-    saveButton = tk.Button(frame, text="Save", command=save_file)
-    saveasButton = tk.Button(frame, text="Save As", command=saveas_file)
+    frame = ttk.Frame(window, relief=tk.RAISED)
+    openButton = ttk.Button(frame, text="Open", command=open_file)
+    saveButton = ttk.Button(frame, text="Save", command=save_file)
 
     openButton.grid(row=0, column=0, sticky="ew")
     saveButton.grid(row=0, column=1, sticky="ew")
-    saveasButton.grid(row=0, column=2, sticky="ew")
 
-class ControlBar():
+class ControlBar:
     def update_page_number():
-        pageNumber = tk.Label(text=f"Page {pageNum}", fg="black")
+        pageNumber = tk.Label(text=f"Page {pageNum}", fg="white")
         pageNumber.grid(row=0, column=1, sticky="s")
     update_page_number()
 
-    def previous_page():
+    def previous_page(frame):
         global pageNum
         if pageNum > 1:
             if not editor.get("1.0", tk.END).strip() == "":
@@ -77,7 +95,7 @@ class ControlBar():
             editor.delete("1.0", tk.END)
             editor.insert(tk.END, currentText["pages"][pageNum - 1]["text"])
 
-    def next_page():
+    def next_page(frame):
         global pageNum
         if pageNum <= len(currentText["pages"]):
             if not editor.get("1.0", tk.END).strip() == "":
@@ -88,15 +106,30 @@ class ControlBar():
             if pageNum <= len(currentText["pages"]):
                 editor.insert(tk.END, currentText["pages"][pageNum - 1]["text"])
 
-    frame = tk.Frame(window, relief=tk.RAISED)
-    backButton = tk.Button(frame, text="Back", command=previous_page)
-    nextButton = tk.Button(frame, text="Next", command=next_page)
+    frame = ttk.Frame(window, relief=tk.RAISED)
+    backButton = ttk.Button(frame, text="Back", command=previous_page)
+    nextButton = ttk.Button(frame, text="Next", command=next_page)
+    wordCounter = tk.Label(frame, text=f"{wordCount} words", fg="white")
 
-    backButton.grid(row=0, column=0, sticky="sw")
-    nextButton.grid(row=0, column=1, sticky="sw")
+    backButton.grid(row=0, column=1, sticky="sw")
+    nextButton.grid(row=0, column=2, sticky="sw")
+    wordCounter.grid(row=0, column=0, sticky="w")
+
+    def update_word_counter(event):
+        global wordCount
+        text = editor.get("1.0", tk.END).strip()
+        if not text == "":
+            wordCount = len(text.split())
+            ControlBar.wordCounter.config(text=f"{wordCount} words", fg="white")
+
+    editor.bind("<KeyRelease>", update_word_counter)
+
 
 MediaBar.frame.grid(row=0, column=0, sticky="w")
 ControlBar.frame.grid(column=1, sticky="sew")
 editor.grid(row=1, column=0, sticky="nsew")
+
+
+sv_ttk.set_theme("dark")
 
 window.mainloop()
